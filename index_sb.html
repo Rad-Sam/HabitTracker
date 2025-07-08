@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Habit Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+      @keyframes subtle-breathing {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.02);
+        }
+      }
+      @keyframes float {
+        0% {
+          transform: translateY(0px);
+        }
+        50% {
+          transform: translateY(-8px);
+        }
+        100% {
+          transform: translateY(0px);
+        }
+      }
+      @keyframes checkmark {
+        0% {
+          transform: scale(0.5);
+          opacity: 0;
+        }
+        50% {
+          transform: scale(1.2);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+      .animate-checkmark {
+        animation: checkmark 0.5s ease-in-out forwards;
+      }
+      @keyframes spark-fly-out {
+        0% {
+          transform: translate(0, 0) scale(1);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(var(--tx), var(--ty)) scale(0);
+          opacity: 0;
+        }
+      }
+      .spark {
+        position: absolute;
+        animation: spark-fly-out 1.5s cubic-bezier(0.05, 0.95, 0.1, 1) forwards;
+      }
+      .spark-star {
+        width: 9px;
+        height: 9px;
+        background: white;
+        clip-path: polygon(
+          50% 0%,
+          61% 35%,
+          98% 35%,
+          68% 57%,
+          79% 91%,
+          50% 70%,
+          21% 91%,
+          32% 57%,
+          2% 35%,
+          39% 35%
+        );
+      }
+      .spark-dot {
+        width: 7px;
+        height: 7px;
+        background: white;
+        border-radius: 50%;
+      }
+      .spark-circle {
+        width: 8px;
+        height: 8px;
+        background: transparent;
+        border: 1px solid white;
+        border-radius: 50%;
+      }
+      @keyframes glitch-out {
+        0% {
+          opacity: 1;
+          transform: translate(0, 0);
+        }
+        20% {
+          transform: translate(var(--tx), var(--ty));
+        }
+        40% {
+          transform: translate(var(--tx-2), var(--ty-2));
+        }
+        60% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+          transform: translate(var(--tx-3), var(--ty-3));
+        }
+      }
+      .glitch {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background: #ec4899;
+        box-shadow: 2px 0 #06b6d4;
+        animation: glitch-out 0.5s steps(2, end) forwards;
+      }
+      @keyframes leaf-drift {
+        0% {
+          transform: translateY(0) translateX(0) rotate(0deg);
+        }
+        25% {
+          transform: translateY(35vh) translateX(var(--x1)) rotate(var(--r1));
+        }
+        50% {
+          transform: translateY(60vh) translateX(var(--x2)) rotate(var(--r2));
+        }
+        75% {
+          transform: translateY(95vh) translateX(var(--x3)) rotate(var(--r3));
+        }
+        100% {
+          transform: translateY(120vh) translateX(var(--x4)) rotate(var(--r4));
+        }
+      }
+      .falling-leaf {
+        position: fixed;
+        top: -10vh;
+        animation: leaf-drift ease-in-out forwards;
+      }
+      @keyframes drift {
+        0% {
+          transform: translateX(-150%);
+        }
+        100% {
+          transform: translateX(150%);
+        }
+      }
+      .cloud {
+        position: fixed;
+        background: white;
+        border-radius: 50%;
+        opacity: 0.35;
+        animation: drift linear infinite;
+      }
+      @keyframes rise {
+        0% {
+          transform: translateY(0) scale(0.5);
+          opacity: 0;
+        }
+        20% {
+          opacity: 0.7;
+        }
+        100% {
+          transform: translateY(-100vh) scale(1);
+          opacity: 0;
+        }
+      }
+      .ember-bg {
+        position: fixed;
+        bottom: -50px;
+        background: #fef08a;
+        border-radius: 50%;
+        animation: rise ease-in forwards;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      // THEME CONFIGURATION
+      const THEMES = {
+        cosmicVoid: {
+          name: "cosmicVoid",
+          mode: "dark",
+          bg: "bg-gradient-to-br from-gray-900 to-gray-800",
+          textColor: "text-white",
+          nodeBg: "bg-gray-700",
+          nodeHoverBg: "bg-gray-600",
+          nodeSelectedBg: "bg-blue-600",
+          connectorColor: "rgba(107, 114, 128, 0.3)",
+          particleComponent: "Spark",
+          backgroundAnimation: null,
+        },
+        sereneWater: {
+          name: "sereneWater",
+          mode: "light",
+          bg: "bg-gradient-to-br from-sky-300 to-blue-200",
+          textColor: "text-gray-700",
+          nodeBg: "bg-blue-400",
+          nodeHoverBg: "bg-blue-500",
+          nodeSelectedBg: "bg-teal-500",
+          connectorColor: "rgba(107, 159, 255, 0.4)",
+          particleComponent: null,
+          backgroundAnimation: "Clouds",
+        },
+        vibrantSunrise: {
+          name: "vibrantSunrise",
+          mode: "light",
+          bg: "bg-gradient-to-br from-yellow-100 via-orange-200 to-red-200",
+          textColor: "text-gray-800",
+          nodeBg: "bg-orange-400",
+          nodeHoverBg: "bg-orange-500",
+          nodeSelectedBg: "bg-red-500",
+          connectorColor: "rgba(251, 146, 60, 0.5)",
+          particleComponent: null,
+          backgroundAnimation: "Embers",
+        },
+        enchantedForest: {
+          name: "enchantedForest",
+          mode: "dark",
+          bg: "bg-gradient-to-br from-green-900 to-gray-900",
+          textColor: "text-green-100",
+          nodeBg: "bg-green-800",
+          nodeHoverBg: "bg-green-700",
+          nodeSelectedBg: "bg-yellow-600",
+          connectorColor: "rgba(134, 239, 172, 0.3)",
+          particleComponent: null,
+          backgroundAnimation: "FallingLeaves",
+        },
+        retroArcade: {
+          name: "retroArcade",
+          mode: "dark",
+          bg: "bg-black",
+          textColor: "text-cyan-300",
+          nodeBg: "bg-transparent border-2 border-pink-500",
+          nodeHoverBg: "bg-pink-500/20",
+          nodeSelectedBg: "bg-cyan-500 text-black",
+          connectorColor: "rgba(236, 72, 153, 0.5)",
+          particleComponent: "Glitch",
+          backgroundAnimation: null,
+        },
+      };
+      const themeNames = Object.keys(THEMES);
+      const shuffleThemes = () => themeNames.sort(() => Math.random() - 0.5);
+
+      const getInitialThemeName = () => {
+        const rand = Math.random();
+        if (rand < 0.5) return "cosmicVoid";
+        if (rand < 0.6) return "sereneWater";
+        if (rand < 0.7) return "vibrantSunrise";
+        if (rand < 0.8) return "enchantedForest";
+        return "retroArcade";
+      };
+
+      const initialThemeName = getInitialThemeName();
+      const initialTheme = THEMES[initialThemeName];
+
+      // SVG ICONS
+      const VisualizingIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
+      const MotivationIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      );
+      const IdentityIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      );
+      const SignalIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M2 8.82a15 15 0 0 1 20 0" />
+          <path d="M5 12.85a10 10 0 0 1 14 0" />
+          <path d="M8 16.88a5 5 0 0 1 8 0" />
+          <path d="M12 21h.01" />
+        </svg>
+      );
+      const CanDoIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m3.5 14.5 5 5L12 16l6 6 3.5-3.5-6-6 3.5-3.5-5-5-3.5 3.5 6 6-3.5 3.5Z" />
+        </svg>
+      );
+      const NoOutcomeIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+          <path d="M22 19h-4.5" />
+          <path d="M19.5 22v-6" />
+        </svg>
+      );
+      const TinyHabitIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M7 20h10" />
+          <path d="M10 20v-6h4v6" />
+          <path d="M12 14V9" />
+          <path d="M12 9a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v0" />
+          <path d="M10 9a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v0" />
+          <path d="M12 20a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h0a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z" />
+        </svg>
+      );
+      const AcceptIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+        </svg>
+      );
+      const CheckmarkIcon = () => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-green-400"
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      );
+      const RandomizeIcon = ({ color }) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M21 12H3M21 6H3M10 18H3M21 18h-7" />
+          <path d="m18 9-3-3 3-3" />
+          <path d="m6 15 3 3-3 3" />
+        </svg>
+      );
+      const LeafIcon = ({ className, style }) => (
+        <svg
+          className={className}
+          style={style}
+          viewBox="0 0 24 24"
+          fill="currentColor"
+        >
+          <path d="M17,8C8,10,5.9,16.17,3.82,21.34L5.71,22l1.62-2.38c.52.22,1.1,0,1.34-1.34c.22-.52,0-1.1-.52-1.34L17,8Z" />
+        </svg>
+      );
+
+      // PARTICLE & BG ANIMATION COMPONENTS
+      const Spark = ({ id, angle, startRadius, onAnimationEnd }) => {
+        const shapes = ["star", "dot", "circle"];
+        const [shape] = useState(
+          () => shapes[Math.floor(Math.random() * shapes.length)]
+        );
+        const travelDistance = 90;
+        const tx = Math.cos(angle) * travelDistance;
+        const ty = Math.sin(angle) * travelDistance;
+        const startX = Math.cos(angle) * startRadius;
+        const startY = Math.sin(angle) * startRadius;
+        return (
+          <div
+            className={`spark spark-${shape}`}
+            style={{
+              top: `calc(${startY}px - 4px)`,
+              left: `calc(${startX}px - 4px)`,
+              "--tx": `${tx}px`,
+              "--ty": `${ty}px`,
+            }}
+            onAnimationEnd={onAnimationEnd}
+          />
+        );
+      };
+      const Glitch = ({ id, angle, startRadius, onAnimationEnd }) => {
+        const travelDistance = 60;
+        const tx = Math.cos(angle) * travelDistance;
+        const ty = Math.sin(angle) * travelDistance;
+        const startX = Math.cos(angle) * startRadius;
+        const startY = Math.sin(angle) * startRadius;
+        return (
+          <div
+            className="glitch"
+            style={{
+              top: `calc(${startY}px - 4px)`,
+              left: `calc(${startX}px - 4px)`,
+              "--tx": `${tx}px`,
+              "--ty": `${ty}px`,
+              "--tx-2": `${tx * 0.5}px`,
+              "--ty-2": `${ty * 1.5}px`,
+              "--tx-3": `${tx * 1.2}px`,
+              "--ty-3": `${ty * 0.8}px`,
+            }}
+            onAnimationEnd={onAnimationEnd}
+          />
+        );
+      };
+      const FallingLeaves = () => {
+        const [leaves] = useState(() =>
+          Array.from({ length: 7 }).map((_, i) => ({
+            id: i,
+            left: `${Math.random() * 100}vw`,
+            duration: `${Math.random() * 8 + 7}s`,
+            delay: `${Math.random() * 10}s`,
+            size: `${Math.random() * 15 + 15}px`,
+            x1: `${Math.random() * 20 - 10}vw`,
+            x2: `${Math.random() * 20 - 10}vw`,
+            x3: `${Math.random() * 20 - 10}vw`,
+            x4: `${Math.random() * 20 - 10}vw`,
+            r1: `${Math.random() * 180}deg`,
+            r2: `${Math.random() * 360}deg`,
+            r3: `${Math.random() * 180 - 180}deg`,
+            r4: `${Math.random() * 360 - 180}deg`,
+          }))
+        );
+        return (
+          <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
+            <div className="relative w-full h-full">
+              {leaves.map((leaf) => (
+                <LeafIcon
+                  key={leaf.id}
+                  className="falling-leaf text-green-400"
+                  style={{
+                    left: leaf.left,
+                    animationDuration: leaf.duration,
+                    animationDelay: leaf.delay,
+                    width: leaf.size,
+                    height: leaf.size,
+                    "--x1": leaf.x1,
+                    "--x2": leaf.x2,
+                    "--x3": leaf.x3,
+                    "--x4": leaf.x4,
+                    "--r1": leaf.r1,
+                    "--r2": leaf.r2,
+                    "--r3": leaf.r3,
+                    "--r4": leaf.r4,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      };
+      const Clouds = () => {
+        const [cloudParts] = useState(() =>
+          Array.from({ length: 20 }).map((_, i) => ({
+            id: i,
+            top: `${Math.random() * 100}%`,
+            left: `${Math.random() * 100}%`,
+            duration: `${Math.random() * 40 + 30}s`,
+            delay: `${Math.random() * -60}s`,
+            size: `${Math.random() * 150 + 50}px`,
+          }))
+        );
+        return (
+          <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0 overflow-hidden">
+            <div className="relative w-full h-full">
+              {cloudParts.map((part) => (
+                <div
+                  key={part.id}
+                  className="cloud"
+                  style={{
+                    top: part.top,
+                    left: part.left,
+                    animationDuration: part.duration,
+                    animationDelay: part.delay,
+                    width: part.size,
+                    height: part.size,
+                  }}
+                ></div>
+              ))}
+            </div>
+          </div>
+        );
+      };
+      const Embers = () => {
+        const [embers] = useState(() =>
+          Array.from({ length: 30 }).map((_, i) => ({
+            id: i,
+            left: `${Math.random() * 100}vw`,
+            duration: `${Math.random() * 10 + 5}s`,
+            delay: `${Math.random() * 15}s`,
+            size: `${Math.random() * 8 + 4}px`,
+          }))
+        );
+        return (
+          <div className="fixed bottom-0 left-0 w-full h-full pointer-events-none z-0">
+            <div className="relative w-full h-full">
+              {embers.map((ember) => (
+                <div
+                  key={ember.id}
+                  className="ember-bg"
+                  style={{
+                    left: ember.left,
+                    animationDuration: ember.duration,
+                    animationDelay: ember.delay,
+                    width: ember.size,
+                    height: ember.size,
+                  }}
+                ></div>
+              ))}
+            </div>
+          </div>
+        );
+      };
+
+      const PARTICLE_COMPONENTS = { Spark, Glitch };
+      const BACKGROUND_ANIMATIONS = { FallingLeaves, Clouds, Embers };
+
+      const ConnectorLine = ({ from, to, direction, theme }) => {
+        let offsetX = 0.1,
+          offsetY = -0.1;
+        switch (direction) {
+          case "tr":
+            offsetX = 0.15;
+            offsetY = -0.05;
+            break;
+          case "br":
+            offsetX = 0.08;
+            offsetY = 0.12;
+            break;
+          case "bl":
+            offsetX = -0.1;
+            offsetY = 0.15;
+            break;
+          case "tl":
+            offsetX = -0.12;
+            offsetY = -0.08;
+            break;
+        }
+        const controlX = (from.x + to.x) / 2 + (to.y - from.y) * offsetX;
+        const controlY = (from.y + to.y) / 2 - (to.x - from.x) * offsetY;
+        const pathData = `M ${from.x} ${from.y} Q ${controlX} ${controlY}, ${to.x} ${to.y}`;
+        return (
+          <path
+            d={pathData}
+            stroke={theme.connectorColor}
+            strokeWidth="0.5"
+            fill="none"
+            className="transition-all duration-500"
+          />
+        );
+      };
+
+      // THEMED COMPONENTS
+      const MindMapNode = ({
+        icon,
+        label,
+        onClick,
+        isSelected,
+        position,
+        theme,
+      }) => {
+        const [sparks, setSparks] = useState([]);
+        const nodeRef = useRef(null);
+        const ParticleComponent = PARTICLE_COMPONENTS[theme.particleComponent];
+        const handleMouseEnter = (e) => {
+          if (!ParticleComponent || !nodeRef.current) return;
+          const rect = nodeRef.current.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          const centerX = rect.width / 2;
+          const centerY = rect.height / 2;
+          const angle = Math.atan2(y - centerY, x - centerX) + Math.PI;
+          const newSparks = Array.from({ length: 12 }).map(() => ({
+            id: Math.random(),
+            angle: angle + (Math.random() - 0.5) * 1.5,
+          }));
+          setSparks((currentSparks) => [...currentSparks, ...newSparks]);
+        };
+        const nodeStyle =
+          theme.name === "retroArcade"
+            ? {
+                clipPath:
+                  "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
+              }
+            : { borderRadius: "48% 52% 49% 51% / 51% 48% 52% 49%" };
+        return (
+          <div className="absolute group" style={position}>
+            <button
+              ref={nodeRef}
+              onClick={onClick}
+              onMouseEnter={handleMouseEnter}
+              className="relative cursor-pointer flex flex-col items-center justify-center w-44 h-44 transition-transform duration-300 ease-in-out transform group-hover:scale-125 focus:outline-none"
+            >
+              <div
+                className={`absolute inset-0 transition-colors duration-300 ${
+                  isSelected
+                    ? theme.nodeSelectedBg
+                    : `${theme.nodeBg} group-hover:${theme.nodeHoverBg}`
+                }`}
+                style={nodeStyle}
+              ></div>
+              <div className="relative z-10 flex flex-col items-center justify-center">
+                {icon}
+                <span className="mt-2 text-sm font-semibold text-center px-2">
+                  {label}
+                </span>
+              </div>
+            </button>
+            {ParticleComponent && (
+              <div className="absolute top-0 left-0 w-44 h-44 pointer-events-none">
+                <div className="relative w-full h-full">
+                  <div className="absolute top-1/2 left-1/2">
+                    {sparks.map((spark) => (
+                      <ParticleComponent
+                        key={spark.id}
+                        id={spark.id}
+                        angle={spark.angle}
+                        startRadius={96}
+                        onAnimationEnd={() =>
+                          setSparks((s) => s.filter((sp) => sp.id !== spark.id))
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      };
+      const AnimatedStep = ({
+        title,
+        children,
+        showInput,
+        onNoteChange,
+        noteValue,
+        placeholder,
+        onNext,
+        nextLabel,
+        nodes,
+        theme,
+      }) => {
+        const [showDetails, setShowDetails] = useState(false);
+        const [hasHovered, setHasHovered] = useState(false);
+        useEffect(() => {
+          if (showInput) {
+            const timer = setTimeout(() => setShowDetails(true), 500);
+            return () => clearTimeout(timer);
+          }
+        }, [showInput]);
+        const centralNodeStyle =
+          theme.name === "retroArcade"
+            ? {
+                clipPath:
+                  "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
+              }
+            : { borderRadius: "52% 48% 51% 49% / 48% 52% 49% 51%" };
+        const inputClasses =
+          theme.mode === "dark"
+            ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+            : "bg-white border-gray-300 text-gray-800 placeholder-gray-500";
+        return (
+          <div className="relative w-full h-screen flex flex-col items-center justify-center">
+            <div
+              className={`transition-all duration-700 ${
+                showInput
+                  ? "transform -translate-y-full opacity-0"
+                  : "transform translate-y-0 opacity-100"
+              }`}
+            >
+              <div
+                className="relative flex items-center justify-center cursor-pointer"
+                onMouseEnter={() => setHasHovered(true)}
+              >
+                <div
+                  className={`z-10 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] transition-all duration-700 ${
+                    hasHovered && !showInput
+                      ? "opacity-100 scale-100"
+                      : "opacity-0 scale-90 pointer-events-none"
+                  }`}
+                >
+                  <svg
+                    width="100%"
+                    height="100%"
+                    className="absolute top-0 left-0"
+                  >
+                    {nodes.map((node) => (
+                      <ConnectorLine
+                        key={`line-${node.label}`}
+                        from={{ x: 256, y: 256 }}
+                        to={node.lineEnd}
+                        direction={node.direction}
+                        theme={theme}
+                      />
+                    ))}
+                  </svg>
+                  {children}
+                </div>
+                <div
+                  className={`z-20 absolute w-52 h-52 ${theme.nodeBg} opacity-50`}
+                  style={centralNodeStyle}
+                ></div>
+                <div
+                  className={`z-20 relative w-44 h-44 ${theme.nodeBg} flex items-center justify-center text-center p-4 animate-subtle-breathing`}
+                  style={centralNodeStyle}
+                >
+                  <h2 className="text-2xl font-bold">{title}</h2>
+                </div>
+              </div>
+            </div>
+            {showInput && (
+              <div
+                className={`absolute w-full max-w-md mx-auto transition-opacity duration-500 ${
+                  showDetails ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                <textarea
+                  onChange={(e) => onNoteChange(e.target.value)}
+                  value={noteValue}
+                  className={`w-full p-4 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputClasses}`}
+                  placeholder={placeholder}
+                ></textarea>
+                <button
+                  onClick={onNext}
+                  className="w-full bg-gray-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-gray-600 transition-colors"
+                >
+                  {nextLabel}
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      };
+      const Step1 = (props) => {
+        const iconColor =
+          props.theme.mode === "dark" ? "white" : "currentColor";
+        const mindsets = [
+          {
+            label: "Visualizing",
+            icon: <VisualizingIcon color={iconColor} />,
+            position: {
+              top: "15%",
+              left: "16%",
+              transform: "translate(-50%, -50%)",
+            },
+            lineEnd: { x: 82, y: 77 },
+            direction: "tl",
+          },
+          {
+            label: "Motivational interviewing",
+            icon: <MotivationIcon color={iconColor} />,
+            position: {
+              top: "16%",
+              right: "15%",
+              transform: "translate(50%, -50%)",
+            },
+            lineEnd: { x: 435, y: 82 },
+            direction: "tr",
+          },
+          {
+            label: "Identity shift",
+            icon: <IdentityIcon color={iconColor} />,
+            position: {
+              bottom: "15%",
+              right: "16%",
+              transform: "translate(50%, 50%)",
+            },
+            lineEnd: { x: 430, y: 435 },
+            direction: "br",
+          },
+          {
+            label: "Signal",
+            icon: <SignalIcon color={iconColor} />,
+            position: {
+              bottom: "16%",
+              left: "15%",
+              transform: "translate(-50%, 50%)",
+            },
+            lineEnd: { x: 77, y: 430 },
+            direction: "bl",
+          },
+        ];
+        return (
+          <AnimatedStep
+            {...props}
+            nodes={mindsets}
+            title="Step 1: Choose Your Mindset"
+            nextLabel="Next"
+            onNoteChange={(value) => props.onNoteChange(1, value)}
+            noteValue={props.notes[1] || ""}
+            placeholder={`Details for ${props.selections.mindset}...`}
+            showInput={!!props.selections.mindset}
+          >
+            {mindsets.map((mindset) => (
+              <MindMapNode
+                key={mindset.label}
+                {...mindset}
+                {...props}
+                onClick={() => props.onSelect("mindset", mindset.label)}
+                isSelected={props.selections.mindset === mindset.label}
+              />
+            ))}
+          </AnimatedStep>
+        );
+      };
+      const Step2 = (props) => {
+        const iconColor =
+          props.theme.mode === "dark" ? "white" : "currentColor";
+        const approaches = [
+          {
+            label: "What CAN I do right now?",
+            icon: <CanDoIcon color={iconColor} />,
+            position: {
+              top: "15%",
+              left: "16%",
+              transform: "translate(-50%, -50%)",
+            },
+            lineEnd: { x: 82, y: 77 },
+            direction: "tl",
+          },
+          {
+            label: "No focus on outcome",
+            icon: <NoOutcomeIcon color={iconColor} />,
+            position: {
+              top: "16%",
+              right: "15%",
+              transform: "translate(50%, -50%)",
+            },
+            lineEnd: { x: 435, y: 82 },
+            direction: "tr",
+          },
+          {
+            label: "Tiny small habit",
+            icon: <TinyHabitIcon color={iconColor} />,
+            position: {
+              bottom: "15%",
+              right: "16%",
+              transform: "translate(50%, 50%)",
+            },
+            lineEnd: { x: 430, y: 435 },
+            direction: "br",
+          },
+          {
+            label: "Accepting hard actions",
+            icon: <AcceptIcon color={iconColor} />,
+            position: {
+              bottom: "16%",
+              left: "15%",
+              transform: "translate(-50%, 50%)",
+            },
+            lineEnd: { x: 77, y: 430 },
+            direction: "bl",
+          },
+        ];
+        return (
+          <AnimatedStep
+            {...props}
+            nodes={approaches}
+            title="Step 2: Choose Your Approach"
+            nextLabel="Next"
+            onNoteChange={(value) => props.onNoteChange(2, value)}
+            noteValue={props.notes[2] || ""}
+            placeholder={`Details for ${props.selections.approach}...`}
+            showInput={!!props.selections.approach}
+          >
+            {approaches.map((approach) => (
+              <MindMapNode
+                key={approach.label}
+                {...approach}
+                {...props}
+                onClick={() => props.onSelect("approach", approach.label)}
+                isSelected={props.selections.approach === approach.label}
+              />
+            ))}
+          </AnimatedStep>
+        );
+      };
+      const Step3 = ({ onNoteChange, notes, onNext, theme }) => {
+        const isDark = theme.mode === "dark";
+        const baseClasses = isDark
+          ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+          : "bg-white text-gray-600 hover:bg-gray-100 border";
+        const textClasses = isDark ? "text-gray-300" : "text-gray-700";
+        const titleClasses = isDark ? "text-white" : "text-gray-800";
+        const inputClasses = isDark
+          ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+          : "bg-white border-gray-300 text-gray-800 placeholder-gray-500";
+        const actionItems = [
+          "Curiosity creates flow",
+          "Theorycraft tasks like RPG builds",
+          "Use music",
+          "Focusmate",
+          "No phone in room",
+        ];
+        const [checkedItems, setCheckedItems] = useState({});
+        const [visibleItems, setVisibleItems] = useState([]);
+        useEffect(() => {
+          const timers = actionItems.map((_, index) =>
+            setTimeout(() => {
+              setVisibleItems((prev) => [...prev, index]);
+            }, index * 300)
+          );
+          return () => timers.forEach(clearTimeout);
+        }, []);
+        const handleItemClick = (item) =>
+          setCheckedItems((prev) => ({ ...prev, [item]: !prev[item] }));
+        return (
+          <div className="text-center p-8 max-w-2xl mx-auto">
+            <h2 className={`text-3xl font-bold mb-8 ${titleClasses}`}>
+              Step 3: Action Setup
+            </h2>
+            <div className="flex flex-wrap justify-center items-center gap-6 mb-8">
+              {actionItems.map((item, index) => (
+                <div
+                  key={item}
+                  className={`transition-all duration-500 ${
+                    visibleItems.includes(index)
+                      ? "opacity-100 translate-y-0"
+                      : "opacity-0 translate-y-5"
+                  }`}
+                >
+                  <div
+                    onClick={() => handleItemClick(item)}
+                    className={`flex items-center gap-3 p-4 rounded-lg cursor-pointer animate-float transition-colors ${baseClasses}`}
+                    style={{ animationDelay: `${index * 0.2}s` }}
+                  >
+                    <span className={`text-lg ${textClasses}`}>{item}</span>
+                    {checkedItems[item] && (
+                      <div className="animate-checkmark">
+                        <CheckmarkIcon />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <textarea
+              onChange={(e) => onNoteChange(3, e.target.value)}
+              value={notes[3] || ""}
+              className={`w-full p-4 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputClasses}`}
+              placeholder="Optional notes..."
+            ></textarea>
+            <button
+              onClick={onNext}
+              className="w-full bg-gray-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-gray-600 transition-colors"
+            >
+              Confirm
+            </button>
+          </div>
+        );
+      };
+      const ActionTimerStep = ({ onNext, toneJsLoaded, theme }) => {
+        const [minutes, setMinutes] = useState(10);
+        const [seconds, setSeconds] = useState(0);
+        const [isActive, setIsActive] = useState(false);
+        const [isFinished, setIsFinished] = useState(false);
+        const synth = useRef(null);
+        const isDark = theme.mode === "dark";
+        const titleClasses = isDark ? "text-white" : "text-gray-800";
+        const textClasses = isDark ? "text-gray-300" : "text-gray-700";
+        const timerInputClasses = isDark
+          ? "border-gray-500 focus:border-blue-400"
+          : "border-gray-400 focus:border-blue-500";
+        useEffect(() => {
+          if (toneJsLoaded && !synth.current) {
+            synth.current = new window.Tone.Synth().toDestination();
+          }
+        }, [toneJsLoaded]);
+        useEffect(() => {
+          let interval = null;
+          if (isActive) {
+            interval = setInterval(() => {
+              if (seconds > 0) {
+                setSeconds(seconds - 1);
+              }
+              if (seconds === 0) {
+                if (minutes === 0) {
+                  if (synth.current) {
+                    synth.current.triggerAttackRelease("C5", "8n");
+                  }
+                  setIsActive(false);
+                  setIsFinished(true);
+                  clearInterval(interval);
+                } else {
+                  setMinutes(minutes - 1);
+                  setSeconds(59);
+                }
+              }
+            }, 1000);
+          }
+          return () => clearInterval(interval);
+        }, [isActive, seconds, minutes]);
+        const handleStart = () => {
+          if (minutes > 0 || seconds > 0) {
+            setIsActive(true);
+          }
+        };
+        const handleTimeChange = (e) => {
+          const newMinutes = parseInt(e.target.value, 10);
+          if (!isNaN(newMinutes) && !isActive) {
+            setMinutes(newMinutes);
+          }
+        };
+        return (
+          <div className="text-center p-8 max-w-2xl mx-auto flex flex-col items-center">
+            <h2 className={`text-3xl font-bold mb-4 ${titleClasses}`}>
+              Ready? Go do the action.
+            </h2>
+            <p className={`mb-8 text-xl ${textClasses}`}>
+              Give it a specific deadline under 10 mins.
+            </p>
+            <div className="relative w-64 h-64 flex items-center justify-center mb-8">
+              <div className="absolute w-full h-full bg-blue-500/20 rounded-full animate-subtle-breathing"></div>
+              <div
+                className="absolute w-5/6 h-5/6 bg-blue-500/30 rounded-full animate-subtle-breathing"
+                style={{ animationDelay: "0.5s" }}
+              ></div>
+              <div className="z-10 text-6xl font-mono">
+                {isActive || isFinished ? (
+                  <span>
+                    {String(minutes).padStart(2, "0")}:
+                    {String(seconds).padStart(2, "0")}
+                  </span>
+                ) : (
+                  <input
+                    type="number"
+                    value={minutes}
+                    onChange={handleTimeChange}
+                    className={`w-32 text-center bg-transparent border-b-2 focus:outline-none ${timerInputClasses}`}
+                  />
+                )}
+              </div>
+            </div>
+            {!isActive && !isFinished && (
+              <button
+                onClick={handleStart}
+                className="w-full max-w-sm bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-blue-600 transition-colors mb-4"
+              >
+                Begin
+              </button>
+            )}
+            <div className="w-full max-w-sm flex space-x-4">
+              <button
+                onClick={onNext}
+                disabled={!isFinished}
+                className="flex-1 bg-gray-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-gray-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                I'm done
+              </button>
+              <button
+                onClick={onNext}
+                className="flex-1 bg-gray-600 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-gray-500 transition-colors"
+              >
+                I'm done early
+              </button>
+            </div>
+          </div>
+        );
+      };
+      const Step4 = ({ onNoteChange, notes, onNext, theme }) => {
+        const isDark = theme.mode === "dark";
+        const textClasses = isDark ? "text-gray-300" : "text-gray-700";
+        const titleClasses = isDark ? "text-white" : "text-gray-800";
+        const inputClasses = isDark
+          ? "bg-gray-800 border-gray-700 text-white placeholder-gray-400"
+          : "bg-white border-gray-300 text-gray-800 placeholder-gray-500";
+        return (
+          <div className="text-center p-8 max-w-lg mx-auto">
+            <h2 className={`text-3xl font-bold mb-4 ${titleClasses}`}>
+              Step 4: Post-Action Assessment
+            </h2>
+            <p className={`mb-6 text-xl ${textClasses}`}>
+              "Assess consequences while aware; no autopiloting the assessment.”
+            </p>
+            <textarea
+              onChange={(e) => onNoteChange(4, e.target.value)}
+              value={notes[4] || ""}
+              className={`w-full p-4 border rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputClasses}`}
+              placeholder="Quick notes/reflection..."
+            ></textarea>
+            <button
+              onClick={onNext}
+              className="w-full bg-gray-500 text-white px-6 py-3 rounded-lg shadow-lg hover:bg-gray-600 transition-colors"
+            >
+              Finish
+            </button>
+          </div>
+        );
+      };
+      const Summary = ({ selections, notes, onReset, onCopy, theme }) => {
+        const isDark = theme.mode === "dark";
+        const baseClasses = isDark
+          ? "bg-gray-800 border-gray-700"
+          : "bg-white border-gray-200";
+        const titleClasses = isDark ? "text-white" : "text-gray-800";
+        const strongTextClasses = isDark ? "text-white" : "text-gray-900";
+        const normalTextClasses = isDark ? "text-gray-300" : "text-gray-600";
+        const italicTextClasses = isDark ? "text-gray-400" : "text-gray-500";
+        return (
+          <div
+            className={`p-8 rounded-lg shadow-xl max-w-2xl mx-auto border ${baseClasses}`}
+          >
+            <h2
+              className={`text-3xl font-bold mb-6 text-center ${titleClasses}`}
+            >
+              Session Summary
+            </h2>
+            <div className={`space-y-4 text-lg ${normalTextClasses}`}>
+              <div>
+                <strong className={strongTextClasses}>Mindset:</strong>{" "}
+                {selections.mindset} -{" "}
+                <i className={italicTextClasses}>{notes[1] || "No details"}</i>
+              </div>
+              <div>
+                <strong className={strongTextClasses}>Approach:</strong>{" "}
+                {selections.approach} -{" "}
+                <i className={italicTextClasses}>{notes[2] || "No details"}</i>
+              </div>
+              <div>
+                <strong className={strongTextClasses}>Action Setup:</strong>{" "}
+                <i className={italicTextClasses}>{notes[3] || "Confirmed"}</i>
+              </div>
+              <div>
+                <strong className={strongTextClasses}>
+                  Post-Action Assessment:
+                </strong>{" "}
+                <i className={italicTextClasses}>
+                  {notes[4] || "No reflection"}
+                </i>
+              </div>
+            </div>
+            <div className="flex justify-center space-x-4 mt-8">
+              <button
+                onClick={onCopy}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
+              >
+                Copy Summary
+              </button>
+              <button
+                onClick={onReset}
+                className="bg-red-600 text-white px-6 py-2 rounded-lg shadow-lg hover:bg-red-700 transition-colors"
+              >
+                Start Over
+              </button>
+            </div>
+          </div>
+        );
+      };
+
+      const App = () => {
+        const [theme, setTheme] = useState(initialTheme);
+        const [step, setStep] = useState(1);
+        const [selections, setSelections] = useState({});
+        const [notes, setNotes] = useState({});
+        const [fade, setFade] = useState(true);
+        const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+        const toneJsLoaded = useRef(false);
+        const [availableThemes, setAvailableThemes] = useState(() =>
+          shuffleThemes().filter((name) => name !== initialTheme.name)
+        );
+
+        useEffect(() => {
+          if (toneJsLoaded.current) return;
+          const script = document.createElement("script");
+          script.src =
+            "https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js";
+          script.onload = () => {
+            toneJsLoaded.current = true;
+          };
+          document.body.appendChild(script);
+          return () => {
+            document.body.removeChild(script);
+          };
+        }, []);
+
+        useEffect(() => {
+          const handleMouseMove = (event) => {
+            const { clientX, clientY } = event;
+            const { innerWidth, innerHeight } = window;
+            const x = clientX - innerWidth / 2;
+            const y = clientY - innerHeight / 2;
+            setMousePos({ x, y });
+          };
+          window.addEventListener("mousemove", handleMouseMove);
+          return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+          };
+        }, []);
+
+        useEffect(() => {
+          setFade(true);
+        }, [step]);
+
+        const handleSelect = (category, value) =>
+          setSelections((prev) => ({ ...prev, [category]: value }));
+        const handleNoteChange = (step, value) =>
+          setNotes((prev) => ({ ...prev, [step]: value }));
+        const nextStep = () => {
+          setFade(false);
+          setTimeout(() => setStep((prev) => prev + 1), 500);
+        };
+        const reset = () => {
+          setFade(false);
+          const newThemeName = getInitialThemeName();
+          setTheme(THEMES[newThemeName]);
+          setAvailableThemes(
+            shuffleThemes().filter((name) => name !== newThemeName)
+          );
+          setTimeout(() => {
+            setStep(1);
+            setSelections({});
+            setNotes({});
+          }, 500);
+        };
+
+        const randomizeTheme = () => {
+          let nextThemes = [...availableThemes];
+          if (nextThemes.length === 0) {
+            nextThemes = shuffleThemes().filter((name) => name !== theme.name);
+          }
+          const nextThemeName = nextThemes.pop();
+          setTheme(THEMES[nextThemeName]);
+          setAvailableThemes(nextThemes);
+        };
+
+        const copySummary = () => {
+          const summaryText = `
+        Step 1: Mindset - ${selections["mindset"] || "N/A"}: ${
+            notes[1] || "No details"
+          }
+        Step 2: Approach - ${selections["approach"] || "N/A"}: ${
+            notes[2] || "No details"
+          }
+        Step 3: Action Setup - ${notes[3] || "Confirmed"}
+        Step 4: Post-Action Assessment - ${notes[4] || "No reflection"}
+                `
+            .trim()
+            .replace(/^\s+/gm, "");
+          const textArea = document.createElement("textarea");
+          textArea.value = summaryText;
+          document.body.appendChild(textArea);
+          textArea.select();
+          try {
+            document.execCommand("copy");
+            alert("Summary copied to clipboard!");
+          } catch (err) {
+            console.error("Failed to copy text: ", err);
+            alert("Failed to copy summary.");
+          }
+          document.body.removeChild(textArea);
+        };
+
+        const BackgroundAnimation =
+          BACKGROUND_ANIMATIONS[theme.backgroundAnimation];
+
+        const renderStep = () => {
+          const props = {
+            selections,
+            onSelect: handleSelect,
+            onNoteChange: handleNoteChange,
+            notes,
+            onNext: nextStep,
+            theme,
+          };
+          switch (step) {
+            case 1:
+              return <Step1 {...props} />;
+            case 2:
+              return <Step2 {...props} />;
+            case 3:
+              return (
+                <Step3
+                  onNoteChange={handleNoteChange}
+                  notes={notes}
+                  onNext={nextStep}
+                  theme={theme}
+                />
+              );
+            case 4:
+              return (
+                <ActionTimerStep
+                  onNext={nextStep}
+                  toneJsLoaded={toneJsLoaded.current}
+                  theme={theme}
+                />
+              );
+            case 5:
+              return (
+                <Step4
+                  onNoteChange={handleNoteChange}
+                  notes={notes}
+                  onNext={nextStep}
+                  theme={theme}
+                />
+              );
+            case 6:
+              return (
+                <Summary
+                  selections={selections}
+                  notes={notes}
+                  onReset={reset}
+                  onCopy={copySummary}
+                  theme={theme}
+                />
+              );
+            default:
+              return null;
+          }
+        };
+
+        const parallaxStyle = {
+          transition: "transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+          transform: `translateX(${-mousePos.x / 25}px) translateY(${
+            -mousePos.y / 25
+          }px)`,
+        };
+
+        return (
+          <>
+            <div
+              className={`${theme.bg} min-h-screen flex items-center justify-center font-sans ${theme.textColor} overflow-hidden relative`}
+            >
+              {BackgroundAnimation && <BackgroundAnimation />}
+              <button
+                onClick={randomizeTheme}
+                className="fixed top-4 right-4 z-50 p-2 bg-black/20 rounded-full hover:bg-black/40 transition-colors"
+              >
+                <RandomizeIcon
+                  color={theme.mode === "dark" ? "white" : "black"}
+                />
+              </button>
+              <div
+                style={parallaxStyle}
+                className={`transition-opacity duration-500 w-full h-full flex items-center justify-center`}
+              >
+                {renderStep()}
+              </div>
+            </div>
+          </>
+        );
+      };
+
+      const container = document.getElementById("root");
+      const root = ReactDOM.createRoot(container);
+      root.render(<App />);
+    </script>
+  </body>
+</html>
