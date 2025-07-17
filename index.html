@@ -251,10 +251,10 @@
 
       const getInitialThemeName = () => {
         const rand = Math.random();
-        if (rand < 0.5) return "cosmicVoid";
-        if (rand < 0.6) return "sereneWater";
-        if (rand < 0.7) return "vibrantSunrise";
-        if (rand < 0.8) return "enchantedForest";
+        if (rand < 0.2) return "cosmicVoid";
+        if (rand < 0.7) return "sereneWater";
+        if (rand < 0.8) return "vibrantSunrise";
+        if (rand < 0.9) return "enchantedForest";
         return "retroArcade";
       };
 
@@ -991,7 +991,7 @@
         return (
           <div className="text-center p-8 max-w-2xl mx-auto">
             <h2 className={`text-3xl font-bold mb-8 ${titleClasses}`}>
-              Step 3: Action Setup
+              Step 3: Flowstate tools
             </h2>
             <div className="flex flex-wrap justify-center items-center gap-6 mb-8">
               {actionItems.map((item, index) => (
@@ -1088,7 +1088,7 @@
         return (
           <div className="text-center p-8 max-w-2xl mx-auto flex flex-col items-center">
             <h2 className={`text-3xl font-bold mb-4 ${titleClasses}`}>
-              Ready? Go do the action.
+              Ready? Think of an exact action, and go do the action.
             </h2>
             <p className={`mb-8 text-xl ${textClasses}`}>
               Give it a specific deadline under 10 mins.
@@ -1309,14 +1309,12 @@
 
         const copySummary = () => {
           const summaryText = `
-        Step 1: Mindset - ${selections["mindset"] || "N/A"}: ${
-            notes[1] || "No details"
-          }
-        Step 2: Approach - ${selections["approach"] || "N/A"}: ${
+        Mindset - ${selections["mindset"] || "N/A"}: ${notes[1] || "No details"}
+        Approach - ${selections["approach"] || "N/A"}: ${
             notes[2] || "No details"
           }
-        Step 3: Action Setup - ${notes[3] || "Confirmed"}
-        Step 4: Post-Action Assessment - ${notes[4] || "No reflection"}
+        Action - ${notes[3] || "Confirmed"}
+        Post-Action Assessment - ${notes[4] || "No reflection"}
                 `
             .trim()
             .replace(/^\s+/gm, "");
